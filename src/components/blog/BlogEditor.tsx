@@ -40,29 +40,41 @@ const BlogEditor = ({ onSave, editingBlog }: BlogEditorProps) => {
 
     setAiGenerating(true);
     try {
-      // This is a placeholder for AI integration
-      // In a real implementation, you would call OpenAI API here
-      const simulatedAIContent = `# ${aiPrompt}
+      console.log('Calling Gemini AI with prompt:', aiPrompt);
 
-This is AI-generated content based on your prompt: "${aiPrompt}"
+      const { data, error } = await supabase.functions.invoke('generate-blog-content', {
+        body: { prompt: aiPrompt }
+      });
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
-## Key Points
-
-- Point one about ${aiPrompt}
-- Another important aspect
-- Detailed analysis and insights
-- Conclusion and recommendations
-
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.`;
-
-      setContent(simulatedAIContent);
-      if (!title) {
-        setTitle(aiPrompt);
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(error.message || 'Failed to generate content');
       }
-      if (!topic) {
-        setTopic(aiPrompt.split(' ')[0]);
+
+      if (!data || !data.content) {
+        throw new Error('No content received from AI');
+      }
+
+      console.log('AI content generated successfully');
+
+      setContent(data.content);
+      
+      // Auto-fill title and topic if they're empty
+      if (!title.trim()) {
+        // Extract title from the first line of generated content
+        const firstLine = data.content.split('\n')[0];
+        const extractedTitle = firstLine.replace(/^#+\s*/, '').trim();
+        if (extractedTitle) {
+          setTitle(extractedTitle);
+        } else {
+          setTitle(aiPrompt);
+        }
+      }
+      
+      if (!topic.trim()) {
+        // Use the first word or phrase from the prompt as topic
+        const topicFromPrompt = aiPrompt.split(' ').slice(0, 2).join(' ');
+        setTopic(topicFromPrompt);
       }
       
       toast({
@@ -70,9 +82,10 @@ Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu 
         description: "Your blog content has been generated successfully.",
       });
     } catch (error) {
+      console.error('AI generation error:', error);
       toast({
         title: "AI Generation Failed",
-        description: "Unable to generate content. Please try again.",
+        description: error.message || "Unable to generate content. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -176,8 +189,13 @@ Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu 
             className="w-full"
           >
             <Wand2 className="h-4 w-4 mr-2" />
-            {aiGenerating ? "Generating..." : "Generate with AI"}
+            {aiGenerating ? "Generating with Gemini AI..." : "Generate with AI"}
           </Button>
+          {aiGenerating && (
+            <div className="text-sm text-gray-600 text-center">
+              Using Google Gemini AI to create your blog content...
+            </div>
+          )}
         </CardContent>
       </Card>
 
